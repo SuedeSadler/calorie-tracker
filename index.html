@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caloriq — AI Food Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f12;
+      --surface: #141720;
+      --surface-2: #1c2030;
+      --border: rgba(255,255,255,0.07);
+      --border-hover: rgba(255,255,255,0.14);
+      --text: #f0f2f7;
+      --muted: #6b7280;
+      --accent: #6ee7b7;
+      --accent-dim: rgba(110,231,183,0.12);
+      --accent-text: #064e3b;
+      --warn: #fbbf24;
+      --warn-dim: rgba(251,191,36,0.1);
+      --danger: #f87171;
+      --danger-dim: rgba(248,113,113,0.1);
+      --protein: #818cf8;
+      --carbs: #34d399;
+      --fat: #fb923c;
+      --fiber: #a78bfa;
+      --radius: 12px;
+      --font: 'DM Sans', system-ui, sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .shell {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 2.5rem 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo-mark svg { width: 18px; height: 18px; }
+    .logo-name {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+    .logo-tag {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+
+    /* ── API key bar ── */
+    .key-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+    .key-bar label {
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .key-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--mono);
+      min-width: 0;
+    }
+    .key-bar input::placeholder { color: var(--muted); }
+    .key-status {
+      font-size: 11px;
+      font-family: var(--mono);
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .key-status.ok { background: var(--accent-dim); color: var(--accent); }
+    .key-status.none { background: var(--warn-dim); color: var(--warn); }
+    .btn-save {
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: var(--font);
+      transition: opacity 0.15s;
+    }
+    .btn-save:hover { opacity: 0.85; }
+
+    /* ── Two-column main layout ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-head-icon {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    .card-body { padding: 16px; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 1.5px dashed var(--border-hover);
+      border-radius: 10px;
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .drop-zone input { display: none; }
+    .drop-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+    }
+    .drop-icon svg { width: 20px; height: 20px; color: var(--accent); }
+    .drop-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+    .drop-sub { font-size: 12px; color: var(--muted); }
+
+    /* ── Preview ── */
+    #preview-wrap { margin-top: 14px; display: none; }
+    #preview-img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 8px;
+      display: block;
+    }
+    .change-btn {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      background: transparent;
+      border: 1px solid var(--border-hover);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .change-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Analyse button ── */
+    .btn-analyse {
+      margin-top: 14px;
+      width: 100%;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.15s;
+    }
+    .btn-analyse:hover:not(:disabled) { opacity: 0.85; }
+    .btn-analyse:disabled { opacity: 0.4; cursor: not-allowed; }
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(6,78,59,0.3);
+      border-top-color: var(--accent-text);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Fitness stats ── */
+    .stats-section {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .stats-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .stat-field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .stat-field input, .stat-field select {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      padding: 6px 8px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .stat-field input:focus, .stat-field select:focus { border-color: var(--accent); }
+    .stat-field select option { background: var(--surface); }
+    .tdee-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tdee-label { font-size: 12px; color: var(--muted); }
+    .tdee-val { font-size: 20px; font-weight: 600; color: var(--accent); font-family: var(--mono); }
+    .tdee-sub { font-size: 11px; color: var(--muted); }
+
+    /* ── Right column: results ── */
+    .results-col { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    /* ── Calorie ring ── */
+    .calorie-hero {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+    }
+    .ring-wrap { position: relative; flex-shrink: 0; }
+    .ring-wrap svg { display: block; }
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .ring-kcal { font-size: 22px; font-weight: 600; font-family: var(--mono); line-height: 1; }
+    .ring-label { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .calorie-meta { flex: 1; min-width: 0; }
+    .budget-bar-wrap { margin-top: 8px; }
+    .budget-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .budget-track {
+      height: 4px;
+      background: var(--surface-2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .budget-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--accent);
+      transition: width 0.6s ease;
+    }
+    .budget-fill.over { background: var(--danger); }
+    .confidence-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .confidence-badge.high { background: var(--accent-dim); color: var(--accent); }
+    .confidence-badge.medium { background: var(--warn-dim); color: var(--warn); }
+    .confidence-badge.low { background: var(--danger-dim); color: var(--danger); }
+
+    /* ── Macro bars ── */
+    .macro-list { display: flex; flex-direction: column; gap: 10px; }
+    .macro-row { display: grid; grid-template-columns: 60px 1fr 44px; align-items: center; gap: 10px; }
+    .macro-name { font-size: 12px; color: var(--muted); }
+    .macro-track {
+      height: 6px;
+      background: var(--surface-2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .macro-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .macro-grams { font-size: 12px; font-family: var(--mono); text-align: right; }
+
+    /* ── Food tags ── */
+    .food-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .food-tag {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      padding: 4px 10px;
+      color: var(--text);
+    }
+
+    /* ── Fitness insights ── */
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .insight-cell {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .insight-cell-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+    .insight-cell-val { font-size: 16px; font-weight: 600; font-family: var(--mono); }
+    .insight-cell-unit { font-size: 10px; color: var(--muted); }
+
+    /* ── Notes ── */
+    .note-box {
+      background: var(--surface-2);
+      border-left: 2px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Empty / error ── */
+    .empty-state {
+      padding: 2rem 1rem;
+      text-align: center;
+    }
+    .empty-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+    }
+    .empty-icon svg { width: 22px; height: 22px; color: var(--muted); }
+    .empty-title { font-size: 14px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+    .empty-sub { font-size: 12px; color: var(--muted); opacity: 0.6; }
+
+    .error-box {
+      background: var(--danger-dim);
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .error-box svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    footer p { font-size: 11px; color: var(--muted); }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#064e3b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+      </div>
+      <span class="logo-name">Caloriq</span>
+      <span class="logo-tag">GPT-4o</span>
+    </div>
+  </header>
+
+  <!-- API Key bar -->
+  <div class="key-bar">
+    <label for="api-key">OPENAI KEY</label>
+    <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
+    <span class="key-status none" id="key-status">not set</span>
+    <button class="btn-save" onclick="saveKey()">Save</button>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <!-- Left: upload + fitness -->
+    <div style="display:flex; flex-direction:column; gap:1.25rem;">
+
+      <!-- Upload card -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          <span class="card-title">Food photo</span>
+        </div>
+        <div class="card-body">
+          <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="onDrag(event,true)" ondragleave="onDrag(event,false)" ondrop="onDrop(event)">
+            <input type="file" id="file-input" accept="image/*" onchange="onFile(event)" />
+            <div class="drop-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="drop-title">Drop a food photo here</div>
+            <div class="drop-sub">or click to browse — JPEG, PNG, WebP</div>
+          </div>
+
+          <div id="preview-wrap">
+            <img id="preview-img" alt="Food photo preview" />
+            <button class="change-btn" onclick="document.getElementById('file-input').click()">Change photo</button>
+          </div>
+
+          <button class="btn-analyse" id="analyse-btn" onclick="analyse()" disabled>
+            <div class="spinner" id="spinner"></div>
+            <svg id="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Analyse with GPT-4o
+          </button>
+        </div>
+      </div>
+
+      <!-- Fitness card -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <span class="card-title">Your stats</span>
+        </div>
+        <div class="card-body">
+          <div class="stats-section">
+            <div class="stats-title">Body metrics</div>
+            <div class="stats-row">
+              <div class="stat-field">
+                <label for="s-age">Age</label>
+                <input type="number" id="s-age" placeholder="30" min="10" max="100" oninput="calcTDEE()" />
+              </div>
+              <div class="stat-field">
+                <label for="s-sex">Sex</label>
+                <select id="s-sex" onchange="calcTDEE()">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+              <div class="stat-field">
+                <label for="s-weight">Weight (kg)</label>
+                <input type="number" id="s-weight" placeholder="75" min="30" max="300" oninput="calcTDEE()" />
+              </div>
+              <div class="stat-field">
+                <label for="s-height">Height (cm)</label>
+                <input type="number" id="s-height" placeholder="175" min="100" max="250" oninput="calcTDEE()" />
+              </div>
+            </div>
+            <div class="stat-field" style="margin-bottom:10px;">
+              <label for="s-activity">Activity level</label>
+              <select id="s-activity" onchange="calcTDEE()">
+                <option value="1.2">Sedentary (desk job, no exercise)</option>
+                <option value="1.375">Light (1–3 days/week)</option>
+                <option value="1.55" selected>Moderate (3–5 days/week)</option>
+                <option value="1.725">Active (6–7 days/week)</option>
+                <option value="1.9">Very active (athlete / physical job)</option>
+              </select>
+            </div>
+            <div class="tdee-display">
+              <div>
+                <div class="tdee-label">Daily calorie target (TDEE)</div>
+                <div class="tdee-sub" id="tdee-sub">Enter your stats above</div>
+              </div>
+              <div>
+                <span class="tdee-val" id="tdee-val">—</span>
+                <span style="font-size:11px; color:var(--muted);"> kcal</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: results -->
+    <div class="results-col">
+
+      <!-- Calorie summary card -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <span class="card-title">Calorie summary</span>
+        </div>
+        <div id="calorie-card-body">
+          <div class="empty-state">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </div>
+            <div class="empty-title">No analysis yet</div>
+            <div class="empty-sub">Upload a photo and hit Analyse</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Macros card -->
+      <div class="card" id="macros-card" style="display:none;">
+        <div class="card-head">
+          <div class="card-head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <span class="card-title">Macros</span>
+        </div>
+        <div class="card-body">
+          <div class="macro-list" id="macro-list"></div>
+        </div>
+      </div>
+
+      <!-- Fitness insights card -->
+      <div class="card" id="insights-card" style="display:none;">
+        <div class="card-head">
+          <div class="card-head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <span class="card-title">Fitness insights</span>
+        </div>
+        <div class="card-body">
+          <div class="insight-grid" id="insight-grid"></div>
+          <div style="margin-top:12px;" id="notes-wrap"></div>
+        </div>
+      </div>
+
+      <!-- Foods detected -->
+      <div class="card" id="foods-card" style="display:none;">
+        <div class="card-head">
+          <div class="card-head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          </div>
+          <span class="card-title">Foods detected</span>
+        </div>
+        <div class="card-body">
+          <div class="food-tags" id="food-tags"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    <p>Estimates only — not a substitute for professional dietary advice.</p>
+    <p>Powered by <a href="https://openai.com" target="_blank" rel="noopener">OpenAI GPT-4o</a></p>
+  </footer>
+</div>
+
+<script>
+  let imageB64 = null;
+  let imageMime = 'image/jpeg';
+  let lastResult = null;
+
+  // ── Key management ──────────────────────────────────────────
+  function saveKey() {
+    const k = document.getElementById('api-key').value.trim();
+    if (!k.startsWith('sk-')) { updateKeyStatus('invalid key — must start with sk-', false); return; }
+    sessionStorage.setItem('oai_key', k);
+    document.getElementById('api-key').value = '';
+    updateKeyStatus('saved for this session', true);
+  }
+
+  function updateKeyStatus(msg, ok) {
+    const el = document.getElementById('key-status');
+    el.textContent = msg;
+    el.className = 'key-status ' + (ok ? 'ok' : 'none');
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (sessionStorage.getItem('oai_key')) updateKeyStatus('active', true);
+    calcTDEE();
+  });
+
+  document.getElementById('api-key').addEventListener('keydown', e => { if (e.key === 'Enter') saveKey(); });
+
+  // ── TDEE calculator ─────────────────────────────────────────
+  function calcTDEE() {
+    const age = parseFloat(document.getElementById('s-age').value);
+    const weight = parseFloat(document.getElementById('s-weight').value);
+    const height = parseFloat(document.getElementById('s-height').value);
+    const sex = document.getElementById('s-sex').value;
+    const activity = parseFloat(document.getElementById('s-activity').value);
+
+    if (!age || !weight || !height) {
+      document.getElementById('tdee-val').textContent = '—';
+      document.getElementById('tdee-sub').textContent = 'Enter your stats above';
+      if (lastResult) renderInsights(lastResult);
+      return;
+    }
+
+    // Mifflin-St Jeor
+    let bmr = sex === 'male'
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161;
+    const tdee = Math.round(bmr * activity);
+
+    document.getElementById('tdee-val').textContent = tdee.toLocaleString();
+    document.getElementById('tdee-sub').textContent = 'Mifflin-St Jeor formula';
+    if (lastResult) renderInsights(lastResult);
+    return tdee;
+  }
+
+  function getTDEE() {
+    const v = document.getElementById('tdee-val').textContent;
+    return v === '—' ? null : parseInt(v.replace(/,/g, ''));
+  }
+
+  // ── File handling ───────────────────────────────────────────
+  function onDrag(e, over) {
+    e.preventDefault();
+    document.getElementById('drop-zone').classList.toggle('drag-over', over);
+  }
+  function onDrop(e) {
+    e.preventDefault(); onDrag(e, false);
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  }
+  function onFile(e) { const f = e.target.files[0]; if (f) loadFile(f); }
+
+  function loadFile(f) {
+    if (!f.type.startsWith('image/')) { showGlobalError('Please upload an image file.'); return; }
+    imageMime = f.type || 'image/jpeg';
+    const reader = new FileReader();
+    reader.onload = ev => {
+      imageB64 = ev.target.result.split(',')[1];
+      document.getElementById('preview-img').src = ev.target.result;
+      document.getElementById('preview-wrap').style.display = 'block';
+      document.getElementById('analyse-btn').disabled = false;
+      resetResults();
+    };
+    reader.readAsDataURL(f);
+  }
+
+  function resetResults() {
+    lastResult = null;
+    document.getElementById('macros-card').style.display = 'none';
+    document.getElementById('insights-card').style.display = 'none';
+    document.getElementById('foods-card').style.display = 'none';
+    document.getElementById('calorie-card-body').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+        <div class="empty-title">Ready to analyse</div>
+        <div class="empty-sub">Hit Analyse with GPT-4o below</div>
+      </div>`;
+  }
+
+  // ── API call ────────────────────────────────────────────────
+  async function analyse() {
+    const key = sessionStorage.getItem('oai_key');
+    if (!key) { showGlobalError('Save your OpenAI API key above first.'); return; }
+    if (!imageB64) { showGlobalError('Upload a food photo first.'); return; }
+
+    const btn = document.getElementById('analyse-btn');
+    const icon = document.getElementById('btn-icon');
+    const spinner = document.getElementById('spinner');
+    btn.disabled = true;
+    icon.style.display = 'none';
+    spinner.style.display = 'block';
+    resetResults();
+
+    const prompt = `You are a precise nutrition analyst. Examine this food image and return ONLY a JSON object with this exact shape — no markdown, no preamble:
+{
+  "foods_detected": ["item1", "item2"],
+  "total_calories": 450,
+  "protein_g": 25,
+  "carbs_g": 40,
+  "fat_g": 15,
+  "fiber_g": 5,
+  "confidence": "medium",
+  "notes": "One sentence about portion uncertainty"
+}
+All numeric values must be integers. confidence is "high", "medium", or "low".
+If food cannot be identified return: {"error": "Could not identify food."}`;
+
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          max_tokens: 400,
+          messages: [{ role: 'user', content: [
+            { type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageB64}`, detail: 'high' } },
+            { type: 'text', text: prompt }
+          ]}]
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const raw = data.choices?.[0]?.message?.content?.trim() || '';
+      let parsed;
+      try { parsed = JSON.parse(raw.replace(/```json|```/g, '').trim()); }
+      catch { throw new Error('Unexpected response format. Try again.'); }
+
+      if (parsed.error) throw new Error(parsed.error);
+
+      lastResult = parsed;
+      renderResults(parsed);
+    } catch(e) {
+      showGlobalError(e.message || 'Something went wrong. Check your API key.');
+    } finally {
+      btn.disabled = false;
+      icon.style.display = '';
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ── Rendering ───────────────────────────────────────────────
+  function renderResults(d) {
+    renderCalorie(d);
+    renderMacros(d);
+    renderInsights(d);
+    renderFoods(d);
+  }
+
+  function renderCalorie(d) {
+    const tdee = getTDEE();
+    const kcal = d.total_calories || 0;
+    const pct = tdee ? Math.min(Math.round(kcal / tdee * 100), 150) : null;
+    const over = pct > 100;
+
+    // SVG ring
+    const r = 44, cx = 52, cy = 52, circ = 2 * Math.PI * r;
+    const fill = pct !== null ? Math.min(pct, 100) / 100 : 0.6;
+    const dashOffset = circ * (1 - fill);
+
+    const confClass = d.confidence || 'medium';
+
+    document.getElementById('calorie-card-body').innerHTML = `
+      <div class="calorie-hero">
+        <div class="ring-wrap">
+          <svg width="104" height="104" viewBox="0 0 104 104">
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="8"/>
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+              stroke="${over ? 'var(--danger)' : 'var(--accent)'}"
+              stroke-width="8"
+              stroke-linecap="round"
+              stroke-dasharray="${circ}"
+              stroke-dashoffset="${pct !== null ? dashOffset : circ * 0.4}"
+              transform="rotate(-90 ${cx} ${cy})"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-kcal">${kcal.toLocaleString()}</div>
+            <div class="ring-label">kcal</div>
+          </div>
+        </div>
+        <div class="calorie-meta">
+          ${tdee ? `
+          <div class="budget-bar-wrap">
+            <div class="budget-label">
+              <span>This meal</span>
+              <span>${pct}% of daily</span>
+            </div>
+            <div class="budget-track">
+              <div class="budget-fill ${over ? 'over' : ''}" style="width:${Math.min(pct,100)}%"></div>
+            </div>
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">${(tdee - kcal).toLocaleString()} kcal remaining today</div>
+          </div>` : `<div style="font-size:12px;color:var(--muted);">Add your stats on the left to see daily budget.</div>`}
+          <div class="confidence-badge ${confClass}">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            ${confClass} confidence
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderMacros(d) {
+    const macros = [
+      { label: 'Protein', val: d.protein_g, color: 'var(--protein)', max: 60 },
+      { label: 'Carbs', val: d.carbs_g, color: 'var(--carbs)', max: 100 },
+      { label: 'Fat', val: d.fat_g, color: 'var(--fat)', max: 60 },
+      { label: 'Fiber', val: d.fiber_g, color: 'var(--fiber)', max: 30 },
+    ];
+    document.getElementById('macro-list').innerHTML = macros.map(m => {
+      const pct = Math.min(Math.round((m.val || 0) / m.max * 100), 100);
+      return `<div class="macro-row">
+        <div class="macro-name">${m.label}</div>
+        <div class="macro-track"><div class="macro-fill" style="width:${pct}%; background:${m.color};"></div></div>
+        <div class="macro-grams" style="color:${m.color};">${m.val ?? 0}g</div>
+      </div>`;
+    }).join('');
+    document.getElementById('macros-card').style.display = '';
+  }
+
+  function renderInsights(d) {
+    const kcal = d.total_calories || 0;
+    const protein = d.protein_g || 0;
+    const carbs = d.carbs_g || 0;
+    const fat = d.fat_g || 0;
+    const fiber = d.fiber_g || 0;
+    const tdee = getTDEE();
+
+    // Protein quality score (0–100 simple heuristic)
+    const proteinPct = Math.round(protein * 4 / Math.max(kcal, 1) * 100);
+    const carbPct = Math.round(carbs * 4 / Math.max(kcal, 1) * 100);
+    const fatPct = Math.round(fat * 9 / Math.max(kcal, 1) * 100);
+
+    // Walk-off time (moderate walking ~4.5 kcal/min for 70kg)
+    const walkMin = Math.round(kcal / 4.5);
+
+    // Satiety proxy: fiber + protein per 100kcal
+    const satiety = Math.min(Math.round((fiber + protein * 0.5) / Math.max(kcal, 1) * 1000), 100);
+
+    const cells = [
+      { label: 'Protein %', val: proteinPct, unit: '% kcal', color: 'var(--protein)' },
+      { label: 'Carb %', val: carbPct, unit: '% kcal', color: 'var(--carbs)' },
+      { label: 'Fat %', val: fatPct, unit: '% kcal', color: 'var(--fat)' },
+      { label: 'Walk-off', val: walkMin, unit: 'min walk', color: 'var(--accent)' },
+      { label: 'Satiety', val: satiety, unit: '/ 100', color: 'var(--fiber)' },
+      { label: 'Daily %', val: tdee ? Math.round(kcal / tdee * 100) : '—', unit: tdee ? '% TDEE' : 'no stats', color: tdee ? (kcal / tdee > 0.4 ? 'var(--danger)' : 'var(--accent)') : 'var(--muted)' },
+    ];
+
+    document.getElementById('insight-grid').innerHTML = cells.map(c => `
+      <div class="insight-cell">
+        <div class="insight-cell-label">${c.label}</div>
+        <div class="insight-cell-val" style="color:${c.color};">${c.val}</div>
+        <div class="insight-cell-unit">${c.unit}</div>
+      </div>`).join('');
+
+    if (d.notes) {
+      document.getElementById('notes-wrap').innerHTML = `<div class="note-box">${d.notes}</div>`;
+    } else {
+      document.getElementById('notes-wrap').innerHTML = '';
+    }
+
+    document.getElementById('insights-card').style.display = '';
+  }
+
+  function renderFoods(d) {
+    const foods = d.foods_detected || [];
+    if (!foods.length) return;
+    document.getElementById('food-tags').innerHTML = foods.map(f => `<span class="food-tag">${f}</span>`).join('');
+    document.getElementById('foods-card').style.display = '';
+  }
+
+  function showGlobalError(msg) {
+    document.getElementById('calorie-card-body').innerHTML = `
+      <div style="padding:16px;">
+        <div class="error-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          ${msg}
+        </div>
+      </div>`;
+  }
+</script>
+</body>
+</html>
