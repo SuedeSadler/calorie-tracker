@@ -86,57 +86,7 @@
       padding: 2px 7px;
     }
 
-    /* ── API key bar ── */
-    .key-bar {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 1.5rem;
-    }
-    .key-bar label {
-      font-size: 12px;
-      font-family: var(--mono);
-      color: var(--muted);
-      white-space: nowrap;
-    }
-    .key-bar input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--text);
-      font-size: 13px;
-      font-family: var(--mono);
-      min-width: 0;
-    }
-    .key-bar input::placeholder { color: var(--muted); }
-    .key-status {
-      font-size: 11px;
-      font-family: var(--mono);
-      padding: 3px 8px;
-      border-radius: 4px;
-      white-space: nowrap;
-    }
-    .key-status.ok { background: var(--accent-dim); color: var(--accent); }
-    .key-status.none { background: var(--warn-dim); color: var(--warn); }
-    .btn-save {
-      background: var(--accent);
-      color: var(--accent-text);
-      border: none;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 6px 12px;
-      cursor: pointer;
-      white-space: nowrap;
-      font-family: var(--font);
-      transition: opacity 0.15s;
-    }
-    .btn-save:hover { opacity: 0.85; }
+
 
     /* ── Two-column main layout ── */
     .main-grid {
@@ -490,14 +440,6 @@
     </div>
   </header>
 
-  <!-- API Key bar -->
-  <div class="key-bar">
-    <label for="api-key">OPENAI KEY</label>
-    <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
-    <span class="key-status none" id="key-status">not set</span>
-    <button class="btn-save" onclick="saveKey()">Save</button>
-  </div>
-
   <!-- Main grid -->
   <div class="main-grid">
 
@@ -668,27 +610,7 @@
   let imageMime = 'image/jpeg';
   let lastResult = null;
 
-  // ── Key management ──────────────────────────────────────────
-  function saveKey() {
-    const k = document.getElementById('api-key').value.trim();
-    if (!k.startsWith('sk-')) { updateKeyStatus('invalid key — must start with sk-', false); return; }
-    sessionStorage.setItem('oai_key', k);
-    document.getElementById('api-key').value = '';
-    updateKeyStatus('saved for this session', true);
-  }
-
-  function updateKeyStatus(msg, ok) {
-    const el = document.getElementById('key-status');
-    el.textContent = msg;
-    el.className = 'key-status ' + (ok ? 'ok' : 'none');
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    if (sessionStorage.getItem('oai_key')) updateKeyStatus('active', true);
-    calcTDEE();
-  });
-
-  document.getElementById('api-key').addEventListener('keydown', e => { if (e.key === 'Enter') saveKey(); });
+  window.addEventListener('DOMContentLoaded', () => { calcTDEE(); });
 
   // ── TDEE calculator ─────────────────────────────────────────
   function calcTDEE() {
@@ -765,8 +687,6 @@
 
   // ── API call ────────────────────────────────────────────────
   async function analyse() {
-    const key = sessionStorage.getItem('oai_key');
-    if (!key) { showGlobalError('Save your OpenAI API key above first.'); return; }
     if (!imageB64) { showGlobalError('Upload a food photo first.'); return; }
 
     const btn = document.getElementById('analyse-btn');
@@ -777,51 +697,21 @@
     spinner.style.display = 'block';
     resetResults();
 
-    const prompt = `You are a precise nutrition analyst. Examine this food image and return ONLY a JSON object with this exact shape — no markdown, no preamble:
-{
-  "foods_detected": ["item1", "item2"],
-  "total_calories": 450,
-  "protein_g": 25,
-  "carbs_g": 40,
-  "fat_g": 15,
-  "fiber_g": 5,
-  "confidence": "medium",
-  "notes": "One sentence about portion uncertainty"
-}
-All numeric values must be integers. confidence is "high", "medium", or "low".
-If food cannot be identified return: {"error": "Could not identify food."}`;
-
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('/api/analyse', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          max_tokens: 400,
-          messages: [{ role: 'user', content: [
-            { type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageB64}`, detail: 'high' } },
-            { type: 'text', text: prompt }
-          ]}]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageB64, imageMime }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `HTTP ${res.status}`);
-      }
+      const parsed = await res.json();
 
-      const data = await res.json();
-      const raw = data.choices?.[0]?.message?.content?.trim() || '';
-      let parsed;
-      try { parsed = JSON.parse(raw.replace(/```json|```/g, '').trim()); }
-      catch { throw new Error('Unexpected response format. Try again.'); }
-
-      if (parsed.error) throw new Error(parsed.error);
+      if (!res.ok || parsed.error) throw new Error(parsed.error || `Server error ${res.status}`);
 
       lastResult = parsed;
       renderResults(parsed);
     } catch(e) {
-      showGlobalError(e.message || 'Something went wrong. Check your API key.');
+      showGlobalError(e.message || 'Something went wrong. Try again.');
     } finally {
       btn.disabled = false;
       icon.style.display = '';
